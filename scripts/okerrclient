@@ -1,0 +1,405 @@
+#!/usr/bin/python
+from __future__ import print_function
+
+import sys
+import argparse
+import os
+import logging
+import json
+import shlex
+import importlib
+import six
+import time
+import daemon
+import daemon.pidfile
+#import lockfile
+import fasteners
+import signal
+import configargparse
+import socket
+import traceback
+import psutil
+
+# sys.path.insert(0, '.')
+
+import okerrclient
+import okerrclient.taskseq
+import okerrclient.taskproc
+import okerrclient.fs
+import okerrclient.listcmd
+import okerrclient.stdin
+import okerrclient.run
+import okerrclient.network
+from okerrclient.pidfile import pidfile
+from okerrclient.api import okerrclient_api
+
+import okerrclient.exceptions
+
+
+# import okerrclient.filter
+
+
+
+try:
+    import oclocal
+except ImportError:
+    pass
+
+cflist = ['~/.okerrclient.conf','/usr/local/etc/okerrclient.conf','/etc/okerr/okerrclient.conf','/etc/okerrclient.conf']
+
+
+def is_okerrclient(p):
+
+    interpreters = ['python']
+    scripts = ['/usr/local/bin/okerrclient']
+
+    if p.name() == 'okerrclient':
+        return True
+
+    if p.name() in interpreters:
+        for script in scripts:
+            if script in p.cmdline():
+                return True
+
+    return False
+
+
+def help(parser,cmd=None):
+    if cmd is None:
+        parser.print_help()
+    else:
+        print("help for sequence command:", cmd)
+        try:
+            print(okerrclient.taskseq.TaskSeq.tp[cmd].fullhelp())
+        except KeyError:
+            print("no such sequence processor '{}', can not print help for it".format(cmd))
+
+
+def openlog(args,name='Logger'):
+    log = logging.getLogger(name)
+
+    #if not args.fg:
+        # no --fg.
+        # either -d or just one run from console
+
+    handler = logging.handlers.SysLogHandler(address='/dev/log')
+    log.addHandler(handler)
+
+    if args.fg or not args.daemon:
+        # --fg. like systemctl runs
+        err = logging.StreamHandler(sys.stderr)
+        log.addHandler(err)
+    else:
+        if not args.daemon:
+            print("no log to stderr")
+
+    log.setLevel(logging.INFO)
+
+    return log
+
+
+def prepare(oc, args, log):
+
+    # configure client object
+    oc.setlog(log)
+    okerrclient.taskseq.TaskSeq.oc = oc
+
+    return oc
+
+def run(oc,args):
+    data = None
+
+    try:
+        ts = okerrclient.taskseq.TaskSeq(
+            iname = None,
+            route = args.sequence,
+            method = None)
+    except (okerrclient.exceptions.OkerrBadMethod, ValueError) as e:
+        # dump to console, if no such method
+        oc.log.error(e)
+        sys.exit(1)
+
+    if args.verbose:
+        oc.verbose()
+        # oc.log.setLevel(logging.DEBUG)
+
+    if args.quiet:
+        oc.quiet()
+        # oc.log.setLevel(logging.CRITICAL)
+
+
+    if not args.daemon:
+        # these options aren't compatible with daemon mode
+        if args.retry:
+            oc.setretry(True)
+
+    if args.steps is not None:
+        ts.setsteps(args.steps)
+
+    if args.dump:
+        ts.setdump(args.dump)
+
+    if args.dumpname:
+        ts.setdumpname(args.dumpname)
+
+    # Run sequence
+    try:
+        ts.run()
+    except okerrclient.exceptions.OkerrExc as e:
+        oc.log.error(u"OKERR ERROR: {}".format(e))
+        return False
+    return True
+
+
+def exc2str(e):
+    exc_type, exc_obj, exc_tb = sys.exc_info()
+    fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+    return "{} line {} {}: {}".format(fname, exc_tb.tb_lineno, exc_type, str(e))
+
+
+def signal_handler(signum, frame):
+
+    signames = dict((k, v) for v, k in reversed(sorted(signal.__dict__.items()))
+         if v.startswith('SIG') and not v.startswith('SIG_'))
+
+    signame = signames[signum]
+
+    if signum == 15:
+        log.warn('Exiting okerrclient (pid {}) on signal {} ({})'.format(os.getpid(), signame, signum))
+        log.warn(traceback.extract_stack(frame))
+        sys.exit(0)
+    else:
+        log.warn('Got signal {} ({})'.format(signame, signum))
+
+
+# get okerrclient and API objects
+oc = okerrclient.OkerrClient()
+api = okerrclient_api()
+# api.log = oc.log
+
+# main
+# parser = argparse.ArgumentParser(description='okerr client. update/create indicators over HTTP.', epilog=okerrclient.taskseq.TaskSeq.help(), formatter_class = argparse.RawDescriptionHelpFormatter, add_help=False)
+
+
+#parser = configargparse.ArgumentParser(description='okerr client. update/create indicators over HTTP.',         epilog=okerrclient.taskseq.TaskSeq.help(), formatter_class = argparse.RawDescriptionHelpFormatter, add_help=False, default_config_files = cflist)
+
+# ! parser = configargparse.ArgumentParser(description='okerr client. update/create indicators over HTTP.', formatter_class = argparse.RawDescriptionHelpFormatter, add_help=False, default_config_files = cflist)
+
+parser = oc.make_parser()
+api.make_parser(parser)
+
+parser_help = parser.add_argument_group('Help')
+parser_help.add_argument('-h', '--help', metavar='sequence_command', dest='help', help='print version', nargs='?', default=None, const=True)
+parser_help.add_argument('--seqhelp', action='store_true', default=False, help='list sequence commands')
+parser_help.add_argument('--version', help='print version', action='store_true')
+
+
+parser_config = parser.add_argument_group('Main configuration')
+
+parser_config.add_argument('-c',dest='conf', is_config_file=True, help='conf file name')
+parser_config.add_argument('-q', dest='quiet',action='store_true',help='quiet mode')
+parser_config.add_argument('--retry', action='store_true', help='if fail to upload status, retry until success', default=False)
+
+
+# parser.add_argument('--name',dest='defname', help="default indicator name (hostname used if not set)", default=socket.gethostname())
+# parser.add_argument('--dry',action='store_true', help="dry run (for testing). indicators will not be updated", default=False)
+parser.add_argument('-s','--sequence',dest='sequence', help="sequence of commands. In simple cases, just OK or ERR or 'STR apache is running okay' or 'STR 42'. But could be complex like: CONNECTIONS 'FILTER status==\"LISTEN\"' ", nargs='+')
+# parser.add_argument('-d', metavar='details', dest='details',help='optional details')
+# parser.add_argument('-m', metavar='method', dest='method',default='heartbeat', help='checkmethod: heartbeat (default), numerical, streqs, streqd')
+
+parser_daemon = parser.add_argument_group('Daemon control')
+
+parser_daemon.add_argument('--daemon', '-d', metavar='period', dest='daemon', help='daemon mode', nargs='?', type=int, default=None, const=20*60)
+parser_daemon.add_argument('--fg', dest='fg', help='foreground mode (used with -d), do not detach', default=False, action='store_true')
+parser_daemon.add_argument('--kill', help='kill running daemon', nargs='?', type=int, default=None, const=20)
+parser_daemon.add_argument('--pidfile', help='pidfile for daemon mode', default='/var/run/okerrclient.pid')
+parser_daemon.add_argument('--status', help='check okerrclient process', action='store_true')
+
+
+parser_debug = parser.add_argument_group('Debugging')
+parser_debug.add_argument('-v', '--verbose', dest='verbose',action='store_true',help='verbose mode')
+parser_debug.add_argument('--steps', default=None, help='stop and dump after N steps (or "all")')
+parser_debug.add_argument('--dump', nargs='+', help='dump method(s) (DUMP,JDUMP,SEQDUMP) to run after --steps (for debugging)')
+parser_debug.add_argument('--dumpname', help='dump only stream with this name')
+
+# parser_debug.add_argument('--trace', help='dump only stream with this name')
+
+
+# from config or command line
+#parser.add_argument('-i','--textid',metavar='TextID', dest='textid', help='project unique text id (not project name!)')
+#parser.add_argument('-S','--secret', metavar='secret', dest='secret',help='optional secret')
+#parser.add_argument('--url', metavar='url', dest='url', default="https://cp.okerr.com/", help='update url')
+
+# parser.add_argument('--cachepath', help='path to local cache', default=None)
+#parser.add_argument('--keyuser', help='username for accessing key', default="client")
+#parser.add_argument('--keypass', help='password for accessing key', default="")
+#parser.add_argument('--tpconf', nargs='*', metavar='CODE:key=value', help='change conf for task processors, e.g. RUN:enabled=1', default=None)
+
+
+
+
+# parser.add_argument('--prefix', help='prefix')
+
+
+
+args = parser.parse_args()
+
+# api functions
+try:
+    if api.run_api_commands(args):
+        sys.exit(0)
+except okerrclient.exceptions.OkerrExc as e:
+    sys.exit(1)
+
+oc.set_args(args)
+
+log = openlog(args)
+
+
+if args.seqhelp:
+    print(okerrclient.taskseq.TaskSeq.help())
+    sys.exit(0)
+
+if args.version:
+    print(okerrclient.version)
+
+    sys.exit(0)
+
+if args.help:
+    if args.help is True:
+        help(parser)
+    else:
+        help(parser,args.help)
+    sys.exit(0)
+
+if args.kill:
+    try:
+        with open(args.pidfile,'r') as pf:
+            pid = int(pf.read())
+        log.error('okerrclient --kill pid {}'.format(pid))
+        os.kill(pid, signal.SIGTERM)
+    except IOError as e:
+        log.error("no pidfile: {}".format(args.pidfile))
+    except OSError as e:
+        print(e)
+    except ValueError:
+        log.error("invalid (empty?) pidfile")
+
+    sys.exit(0)
+
+
+if args.sequence is None:
+    log.error("Must have sequence (-s) in arguments or config file")
+    sys.exit(1)
+
+
+if args.status:
+    try:
+        with open(args.pidfile,'r') as pf:
+            pid = int(pf.read())
+    except IOError as e:
+        print("No pidfile")
+        sys.exit(1)
+
+    lockfile = args.pidfile+'.lock'
+
+    lock = fasteners.InterProcessLock(lockfile)
+    try:
+        if lock.acquire(blocking=False):
+            print("not locked")
+            sys.exit(1)
+    except IOError:
+        print("No access to lockfile {}".format(lockfile))
+        sys.exit(1)
+
+    mypid = os.getpid()
+    pidfound = False
+
+
+    for p in psutil.process_iter():
+        # pass if this is not okerrclient
+        if is_okerrclient(p):
+
+            if p.pid == mypid:
+                # this is me. myself.
+                continue
+
+            if p.pid == pid:
+                pidfound = True
+    if not pidfound:
+        print("No okerrclient with pid {} found".format(pid))
+        sys.exit(1)
+    print("okerrclient runs as pid {} and locked {}".format(pid, args.pidfile))
+
+    # check all processes for extra okerrclients
+
+    sys.exit(0)
+
+
+if args.daemon:
+    # minimal period - 20 minutes
+    if(args.daemon < 2*60):
+        args.daemon = 2*60
+
+    oc.retry = True
+
+    dctx = daemon.DaemonContext(
+        # pidfile = fasteners.InterProcessLock(args.pidfile),
+        # pidfile = pidfile(args.pidfile, log=log),
+        detach_process = not args.fg,
+        files_preserve = [],
+        signal_map = {
+            signal.SIGTERM: signal_handler
+        },
+    )
+
+    if args.fg:
+        # do not close stderr in daemon, if --fg
+        dctx.stderr = sys.stderr
+        dctx.stdout = sys.stdout
+
+
+    # running or not?
+
+    pf = pidfile(args.pidfile, log=log)
+
+    if not pf.trylock():
+        log.error("okerrclient: Cannot start as daemon (can not get lock)")
+        sys.exit(1)
+
+    with dctx:
+        log = openlog(args,'OkerrDaemon') # reopen logs
+
+        with pidfile(args.pidfile, log=log):
+
+            prepare(oc, args, log)
+            oc.log.warn("okerrclient {} started as daemon (pid: {}, period: {} seconds)".format(okerrclient.version, os.getpid(), args.daemon))
+
+            reqver=(2,7,6)
+            if sys.version_info.major <= reqver[0] and sys.version_info.minor <= reqver[1] and sys.version_info.micro < reqver[2]:
+                oc.log.warn("You are using python version {}. This is not very stable. Please consider upgrading to at least {}".format(sys.version_info, '.'.join(str(x) for x in reqver)))
+            else:
+                pass
+
+
+            while True:
+                try:
+                    oc.log.debug('run...')
+                    run(oc,args)
+                    oc.log.debug('sleep {}s'.format(args.daemon))
+                    time.sleep(args.daemon)
+                except Exception as e:
+                    oc.log.exception(u'Exception in main loop: {}'.format(e))
+                    raise
+
+
+else:
+
+    #not daemon, just run once
+    prepare(oc, args, log)
+    if run(oc,args):
+        sys.exit(0)
+    else:
+        sys.exit(1)
+
+# oc.save()

@@ -1,0 +1,31 @@
+#!/usr/bin/python
+
+import okerrclient
+from okerrclient.exceptions import OkerrExc
+import logging
+import sys
+import random
+import time
+
+oc = okerrclient.OkerrClient()
+oc.read_config()
+
+# optional part
+log = logging.getLogger()
+err = logging.StreamHandler(sys.stderr)
+log.addHandler(err)
+log.setLevel(logging.INFO) # or even logging.DEBUG
+oc.log = log
+
+up = okerrclient.Indicator('test:up', tags=['test'], oc=oc)
+rnd = okerrclient.Indicator('test:random', method='numerical|maxlim=100', period=10, tags=['test'], oc=oc)
+
+
+while True:
+    try:    
+        up.update(details="I'm alive!")
+        rnd.update(random.randint(0,110), details="Random...")
+    except OkerrExc as e:
+        print e
+    time.sleep(1)
+    

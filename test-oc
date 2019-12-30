@@ -1,0 +1,34 @@
+#!/bin/sh
+
+#
+# okerr client script
+#
+
+#
+# settings
+#
+
+textid='qweqwe'
+myname=`hostname`
+keyuser='client'
+keypass='in#se#cu#re'
+keypath='conf:test'
+
+# detect where okerr client located
+ocbin='scripts/okerrclient'
+
+if [ ! -x "$ocbin" ]
+then
+    echo "not found okerr-client script"
+    return
+fi
+
+verbose=""
+verbose="-v"
+
+#
+# code
+#
+
+
+$ocbin $verbose -i $textid --keyuser $keyuser --keypass $keypass -s "NAME $myname" "KEYVAL $keypath" MKSEQ

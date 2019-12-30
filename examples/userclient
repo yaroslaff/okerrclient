@@ -1,0 +1,23 @@
+#!/usr/bin/python
+
+import okerrclient
+from okerrclient.exceptions import OkerrExc
+import logging
+import sys
+
+oc = okerrclient.OkerrClient()
+oc.read_config()
+oc.url = 'http://zzz/'
+
+log = logging.getLogger()
+err = logging.StreamHandler(sys.stderr)
+log.addHandler(err)
+log.setLevel(logging.INFO)
+oc.log = log
+
+try:
+    oc.update('test:heartbeat','OK')
+    oc.update('test:numerical', '36.6', method='numerical|maxlim=37', tags=['test'])
+except OkerrExc as e:
+    print "{}: {}".format(type(e), e)
+
