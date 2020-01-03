@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='okerrclient',
-    version='2.0.157',
+    version='2.0.158',
     description='client for okerr cloud monitoring system',
     url='http://okerr.com/',
     author='Yaroslav Polyakov',
@@ -14,7 +14,7 @@ setup(name='okerrclient',
         ('okerrclient/init.d', ['data/init.d/okerrclient']),
         ('okerrclient/systemd',['data/systemd/okerrclient.service']),
     ], 
-    install_requires=['six', 'requests', 'evalidate', 'python-daemon', 'configargparse', 'fasteners', 'okerrupdate','psutil'],
+    install_requires=['six', 'requests', 'evalidate', 'python-daemon', 'configargparse', 'fasteners', 'okerrupdate>=1.1.17','psutil'],
     include_package_data = True,
     zip_safe=False
 )    

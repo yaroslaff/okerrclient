@@ -36,7 +36,7 @@ import okerrclient.network
 
 import okerrclient.exceptions
 
-version='2.0.157 (api key)'
+version='2.0.158 (direct)'
 
 ver = version.split(' ')[0]
 
@@ -123,6 +123,7 @@ class OkerrClient:
         parser.add_argument('-i','--textid',metavar='TextID', dest='textid', help='project unique text id (not project name!)')
         parser.add_argument('-S','--secret', metavar='secret', dest='secret',help='optional secret')
         parser.add_argument('--url', metavar='url', dest='url', default="https://cp.okerr.com/", help='update url')
+        parser.add_argument('--direct', default=False, action='store_true', help='Direct mode (not use director feature, just use --url)')
         parser.add_argument('--keyuser', help='username for accessing key', default="client")
         parser.add_argument('--keypass', help='password for accessing key', default="")
         parser.add_argument('--tpconf', nargs='*', metavar='CODE:key=value', help='change conf for task processors, e.g. RUN:enabled=1', default=None)
@@ -178,8 +179,7 @@ class OkerrClient:
         if args.dry:
             self.dry()
 
-        self.project = okerrupdate.OkerrProject(self.textid, secret = args.secret, url = args.url)
-
+        self.project = okerrupdate.OkerrProject(self.textid, secret = args.secret, url = args.url, direct = args.direct)
 
     def error(self, message):
         self.errors += 1

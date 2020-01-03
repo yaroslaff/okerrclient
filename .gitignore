@@ -6,4 +6,5 @@ build/
 dist/
 *.egg-info/
 client
-
+dist/
+okerrclient.egg-info/

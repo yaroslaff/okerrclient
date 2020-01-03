@@ -1,8 +1,0 @@
-six
-requests
-evalidate
-python-daemon
-configargparse
-fasteners
-okerrupdate
-psutil
