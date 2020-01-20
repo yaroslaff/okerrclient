@@ -20,8 +20,8 @@ from socket import AF_INET, SOCK_STREAM, SOCK_DGRAM
 
 
 # urlparse for python 2 and 3
-from future.standard_library import install_aliases
-install_aliases()
+# from future.standard_library import install_aliases
+# install_aliases()
 from urllib.parse import urlparse, urljoin
 
 

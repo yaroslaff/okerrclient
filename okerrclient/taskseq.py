@@ -1,4 +1,4 @@
-from __future__ import print_function
+# from __future__ import print_function
 
 import logging
 import json
@@ -25,7 +25,7 @@ from okerrclient.exceptions import OkerrExc, OkerrNoKey, OkerrNoTextID, OkerrKey
 from okerrclient.utils import dhms
 
 # Python 2+3 part
-from future.utils import iteritems
+# from future.utils import iteritems
 
 def myunicode(s, encoding=None):
     if sys.version_info >= (3, 0):
