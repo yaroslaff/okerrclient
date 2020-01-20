@@ -36,7 +36,7 @@ import okerrclient.network
 
 import okerrclient.exceptions
 
-version='2.0.158 (direct)'
+version='2.0.160 (no future)'
 
 ver = version.split(' ')[0]
 
