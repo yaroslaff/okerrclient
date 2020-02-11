@@ -1,7 +1,7 @@
 from setuptools import setup
 
 setup(name='okerrclient',
-    version='2.0.160',
+    version='2.0.161',
     description='client for okerr cloud monitoring system',
     url='http://okerr.com/',
     author='Yaroslav Polyakov',

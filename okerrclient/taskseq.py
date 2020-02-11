@@ -1165,7 +1165,7 @@ class TaskMkSeq(GenTaskProcessor):
             data = ddata
 
         # clean up this dict from comments
-        data = {k: v for k, v in iteritems(data) if isinstance(v, dict) or not v.startswith('#')}
+        data = {k: v for k, v in data.items() if isinstance(v, dict) or not v.startswith('#')}
 
         if isinstance(data,dict) and hasdict(data):
             for sdname,subdata in data.items():
