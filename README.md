@@ -18,6 +18,16 @@ configure `textid=mytextid` and `api-key = your_project_okerr_api_key` in `/etc/
 
 ~~~
 okerrclient --api-indicators
+okerrclient --api-indicator --name MyIndicator
 okerrclient --api-filter sslcert '!policy:Default'
-okerrclient --name test --api-set url=http://google.com/ retest=1 
+okerrclient --name MyIndicator --api-set url=http://google.com/ retest=1 
+~~~
+
+Or use in script (set policy 'Daily' for all 'whois' indicator with policy 'Default'): 
+~~~shell
+for i in `okerrclient --api-filter whois policy:Default`; 
+do 
+    echo fix $i; 
+    okerrclient -i okerr --name $i --api-set policy=Daily; 
+done
 ~~~
