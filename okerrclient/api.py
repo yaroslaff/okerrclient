@@ -337,7 +337,7 @@ class okerrclient_api():
         url = urljoin(self.api_url, '/api/filter/{}/'.format(self.textid))
 
         for f in fltr:
-            url = urljoin(url, f+'/')
+            url = urljoin(url, './'+f+'/')
 
         self.log.debug('getting filtered indicators from url {}'.format(url))
         r = requests.get(url, auth=self.http_auth, headers=self.headers)
