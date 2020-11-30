@@ -1,8 +1,13 @@
 from setuptools import setup
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(name='okerrclient',
-    version='2.0.162',
+    version='2.0.163',
     description='client for okerr cloud monitoring system',
+    long_description=long_description,
+    long_description_content_type="text/markdown",    
     url='https://github.com/yaroslaff/okerr-dev',
     author='Yaroslav Polyakov',
     author_email='xenon@sysattack.com',
