@@ -1,3 +1,9 @@
+# okerrclient
+
+okerrclient is old client for [okerr](https://okerr.com/) network/host monitoring system ([okerr-dev git repo](https://github.com/yaroslaff/okerr-dev)).
+
+Most (especially new) users should not need to use this okerrclient package and should use [okerrupdate](https://github.com/yaroslaff/okerrupdate) client instead (it's much newer, redesigned and simpler to use) but okerrclient has features to use [okerr API](https://okerr.readthedocs.io/en/latest/Dev/API.html) which is missed in small okerrupdate utilities.
+
 # Example usage #
 
 assume your project has textid 'mytextid'

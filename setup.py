@@ -4,7 +4,7 @@ with open("README.md", "r") as fh:
     long_description = fh.read()
 
 setup(name='okerrclient',
-    version='2.0.163',
+    version='2.0.164',
     description='client for okerr cloud monitoring system',
     long_description=long_description,
     long_description_content_type="text/markdown",    
